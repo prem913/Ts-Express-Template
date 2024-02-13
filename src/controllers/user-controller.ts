@@ -1,8 +1,9 @@
 import { type Request, type Response } from "express";
 import {z} from "zod";
 import { APIError, ValidationError } from "../utils/app-error";
-import { GenerateSignature } from "../utils/auth_utils";
+import { GenerateSignature, ValidateRequest } from "../utils/auth_utils";
 import { createUser, getUserByEmail,getUserByUsername } from "../db/users";
+import { APP_SECRET, REFRESH_TOKEN_SECRET } from "../config";
 
 // SIGNUP
 const SignupSchema = z.object({
@@ -80,11 +81,26 @@ export const signIn = async (req: Request, res: Response) => {
   if (user.password !== data.password) {
     throw new ValidationError("Incorrect password");
   }
-  const token = GenerateSignature(user);
+  const token = GenerateSignature(user,APP_SECRET);
+  const refreshToken = GenerateSignature(user,REFRESH_TOKEN_SECRET);
   if(!token) throw new APIError("JWT Error");
   res.status(200).json({
     message: "Signin successful",
     "token" : token,
+    "refreshToken" : refreshToken
+  });
+};
+
+export const refreshToken = async (req: Request, res: Response) =>{
+  const isAuthorized = await ValidateRequest(req,REFRESH_TOKEN_SECRET);
+  if(!isAuthorized){
+    throw new ValidationError("Refresh Token is Expired or Invalid!");
+  }
+  const token = GenerateSignature(req.user,APP_SECRET);
+  const refreshToken = GenerateSignature(req.user,REFRESH_TOKEN_SECRET);
+  res.json({
+    "accessToken" : token,
+    "refreshToken" : refreshToken
   });
 };
 
